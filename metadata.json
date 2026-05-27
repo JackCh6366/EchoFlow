@@ -1,0 +1,10 @@
+{
+  "name": "語音轉文字識別",
+  "description": "An elegant, powerful tool that transcribes audio files and voice recordings into well-structured text using Google Gemini AI.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
