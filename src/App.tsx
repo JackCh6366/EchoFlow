@@ -14,6 +14,7 @@ export default function App() {
     mode: "transcribe",
     language: "zh-TW",
     punctuation: true,
+    provider: "gemini",
   });
 
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -70,7 +71,7 @@ export default function App() {
     setErrorMsg(null);
 
     try {
-      const response = await fetch("/api/transcribe", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,6 +80,7 @@ export default function App() {
           fileData: selectedAudio.base64Data,
           mimeType: selectedAudio.type,
           options,
+          provider: options.provider || "gemini",
         }),
       });
 
@@ -172,7 +174,7 @@ export default function App() {
                     正在努力聆聽音軌，轉譯中...
                   </h3>
                   <p className="text-xs text-[#8C887D] max-w-[320px] mx-auto leading-relaxed font-sans">
-                    Gemini 3.5 AI 正在進行音軌分析，將在數秒內整合出完美格式的逐字稿與摘要資訊，請稍候。
+                    {options.provider === "nvidia" ? "NVIDIA Parakeet ASR" : "Gemini 3.5 Flash"} AI 正在進行音軌分析，將在數秒內整合出完美格式的逐字稿與摘要資訊，請稍候。
                   </p>
                 </div>
                 {/* 裝飾波形動畫 */}
@@ -210,12 +212,11 @@ export default function App() {
         </div>
       </main>
 
-      {/* 狀態列底部頁尾 */}
       <footer className="h-9 border-t border-[#E0DCCF] bg-[#5A5A40] text-[#F8F7F2] flex items-center px-4 sm:px-6 md:px-8 justify-between text-[10px] tracking-wider ui-sans select-none">
         <div className="flex items-center gap-3">
           <span>服務狀態：就緒</span>
           <span className="opacity-40">|</span>
-          <span>轉譯引擎：Gemini 3.5 Flash Model</span>
+          <span>轉譯引擎：{options.provider === "nvidia" ? "NVIDIA Parakeet-CTC" : "Gemini 3.5 Flash"}</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="hidden sm:inline">資料完全保留於本機暫存</span>

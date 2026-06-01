@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, Sparkles, ClipboardList, Languages, Settings2 } from "lucide-react";
+import { FileText, Sparkles, ClipboardList, Languages, Settings2, Cpu } from "lucide-react";
 import { TranscribeOptions, SUPPORTED_LANGUAGES } from "../types";
 
 interface TranscribeConfigProps {
@@ -104,6 +104,52 @@ export const TranscribeConfig: React.FC<TranscribeConfigProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* AI 智慧處理引擎 */}
+      <div className="rounded-2xl border border-[#E0DCCF] bg-[#FDFBF7] p-5 shadow-xs ui-sans">
+        <h3 className="text-xs font-bold text-[#413F3D] uppercase tracking-wider flex items-center gap-2 mb-4">
+          <Cpu className="h-4 w-4 text-[#8C887D]" />
+          <span>AI 智慧處理引擎</span>
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Gemini Option */}
+          <div
+            onClick={() => onChange({ ...options, provider: "gemini" })}
+            className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-all duration-300 ${
+              (options.provider || "gemini") === "gemini"
+                ? "border-[#5A5A40] bg-[#5A5A40]/5 shadow-xs"
+                : "border-[#E0DCCF] bg-white hover:border-[#8C887D]"
+            }`}
+          >
+            <div className={`p-2 rounded-lg ${(options.provider || "gemini") === "gemini" ? "bg-[#5A5A40] text-[#F8F7F2]" : "bg-[#F1EFEC] text-[#8C887D]"}`}>
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-[#413F3D]">Google Gemini</h4>
+              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">gemini-3.5-flash</p>
+            </div>
+          </div>
+
+          {/* NVIDIA Option */}
+          <div
+            onClick={() => onChange({ ...options, provider: "nvidia" })}
+            className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-all duration-300 ${
+              options.provider === "nvidia"
+                ? "border-[#5A5A40] bg-[#5A5A40]/5 shadow-xs"
+                : "border-[#E0DCCF] bg-white hover:border-[#8C887D]"
+            }`}
+          >
+            <div className={`p-2 rounded-lg ${options.provider === "nvidia" ? "bg-[#5A5A40] text-[#F8F7F2]" : "bg-[#F1EFEC] text-[#8C887D]"}`}>
+              <Cpu className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-[#413F3D]">NVIDIA AI</h4>
+              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">parakeet-ctc-0.6b-zh-tw</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 設定細節卡片 */}

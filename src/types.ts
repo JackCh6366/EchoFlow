@@ -2,6 +2,7 @@ export interface TranscribeOptions {
   mode: "transcribe" | "summary" | "qa" | "translation";
   language: string;
   punctuation: boolean;
+  provider?: "gemini" | "nvidia";
 }
 
 export interface AudioFileInfo {
