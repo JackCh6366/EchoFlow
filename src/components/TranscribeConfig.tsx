@@ -128,7 +128,7 @@ export const TranscribeConfig: React.FC<TranscribeConfigProps> = ({
             </div>
             <div>
               <h4 className="text-xs font-bold text-[#413F3D]">Google Gemini</h4>
-              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">gemini-3.5-flash</p>
+              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">gemini-3.1-flash-lite</p>
             </div>
           </div>
 
@@ -145,8 +145,8 @@ export const TranscribeConfig: React.FC<TranscribeConfigProps> = ({
               <Cpu className="h-4 w-4" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-[#413F3D]">NVIDIA AI</h4>
-              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">parakeet-ctc-0.6b-zh-tw</p>
+              <h4 className="text-xs font-bold text-[#413F3D]">NVIDIA AI（Llama 後處理）</h4>
+              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">llama-3.1-nemotron-70b</p>
             </div>
           </div>
         </div>

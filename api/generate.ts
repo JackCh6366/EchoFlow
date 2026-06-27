@@ -17,10 +17,10 @@ if (fs.existsSync(envLocalPath)) {
 }
 
 const GEMINI_MODELS_FALLBACK = [
-  "gemini-3.5-flash",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-1.5-flash"
+  "gemini-3.1-flash-lite",   // 最新 GA 版本，高效率低延遲
+  "gemini-3.5-flash",        // 次選：最強 Flash 系列
+  "gemini-2.5-flash",        // 備援：上一代穩定版
+  "gemini-1.5-flash"         // 最終備援
 ];
 
 async function generateGeminiContentWithFallback(ai: GoogleGenAI, contents: any[]) {
