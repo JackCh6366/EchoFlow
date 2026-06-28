@@ -189,8 +189,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // 步驟 2: 將轉譯出的文字及原提示詞傳送至 NVIDIA API 進行智慧處理 (使用極為穩定的 Llama-3.1 / Nemotron 等高階語言模型進行下游處理)
       const nvidiaModels = [
-        "nvidia/llama-3.1-nemotron-70b-instruct",
-        "meta/llama-3.1-8b-instruct"
+        "nvidia/llama-3.1-nemotron-70b-instruct",  // NVIDIA 優化版，繁中強
+        "meta/llama-3.3-70b-instruct",              // 最新 Llama 3.3，多語言穩定
+        "meta/llama-3.1-8b-instruct"                // 輕量備援，速度快
       ];
 
       let nvidiaResponse = null;
