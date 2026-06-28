@@ -1,6 +1,6 @@
 import React from "react";
 import { FileText, Sparkles, ClipboardList, Languages, Settings2, Cpu } from "lucide-react";
-import { TranscribeOptions, SUPPORTED_LANGUAGES } from "../types";
+import { TranscribeOptions, SUPPORTED_LANGUAGES, NVIDIA_MODELS } from "../types";
 
 interface TranscribeConfigProps {
   options: TranscribeOptions;
@@ -134,20 +134,43 @@ export const TranscribeConfig: React.FC<TranscribeConfigProps> = ({
 
           {/* NVIDIA Option */}
           <div
-            onClick={() => onChange({ ...options, provider: "nvidia" })}
-            className={`flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-all duration-300 ${
+            className={`flex flex-col gap-3 rounded-xl border p-3.5 transition-all duration-300 ${
               options.provider === "nvidia"
                 ? "border-[#5A5A40] bg-[#5A5A40]/5 shadow-xs"
                 : "border-[#E0DCCF] bg-white hover:border-[#8C887D]"
             }`}
           >
-            <div className={`p-2 rounded-lg ${options.provider === "nvidia" ? "bg-[#5A5A40] text-[#F8F7F2]" : "bg-[#F1EFEC] text-[#8C887D]"}`}>
-              <Cpu className="h-4 w-4" />
+            {/* 標題列 - 點擊切換 provider */}
+            <div
+              onClick={() => onChange({ ...options, provider: "nvidia", nvidiaModel: options.nvidiaModel || NVIDIA_MODELS[0].value })}
+              className="flex items-center gap-3 cursor-pointer"
+            >
+              <div className={`p-2 rounded-lg shrink-0 ${options.provider === "nvidia" ? "bg-[#5A5A40] text-[#F8F7F2]" : "bg-[#F1EFEC] text-[#8C887D]"}`}>
+                <Cpu className="h-4 w-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-[#413F3D]">NVIDIA AI（Llama 後處理）</h4>
+                <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">
+                  {NVIDIA_MODELS.find(m => m.value === (options.nvidiaModel || NVIDIA_MODELS[0].value))?.label}
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xs font-bold text-[#413F3D]">NVIDIA AI（Llama 後處理）</h4>
-              <p className="text-[10px] text-[#8C887D] font-mono mt-0.5">llama-3.1-nemotron-70b</p>
-            </div>
+
+            {/* 模型下拉選單 - 選 nvidia 時才顯示 */}
+            {options.provider === "nvidia" && (
+              <select
+                value={options.nvidiaModel || NVIDIA_MODELS[0].value}
+                onChange={(e) => onChange({ ...options, provider: "nvidia", nvidiaModel: e.target.value as any })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full rounded-lg border border-[#E0DCCF] bg-[#F8F7F2] px-2.5 py-2 text-[10px] font-mono text-[#413F3D] focus:border-[#5A5A40] focus:outline-none transition-colors cursor-pointer"
+              >
+                {NVIDIA_MODELS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}・{m.desc}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       </div>

@@ -1,8 +1,17 @@
+export const NVIDIA_MODELS = [
+  { value: "nvidia/llama-3.1-nemotron-70b-instruct", label: "Nemotron 70B", desc: "NVIDIA 優化版・繁中理解強" },
+  { value: "meta/llama-3.3-70b-instruct",            label: "Llama 3.3 70B", desc: "最新 Meta・多語言穩定" },
+  { value: "meta/llama-3.1-8b-instruct",             label: "Llama 3.1 8B",  desc: "輕量快速・備援首選" },
+] as const;
+
+export type NvidiaModelValue = typeof NVIDIA_MODELS[number]["value"];
+
 export interface TranscribeOptions {
   mode: "transcribe" | "summary" | "qa" | "translation";
   language: string;
   punctuation: boolean;
   provider?: "gemini" | "nvidia";
+  nvidiaModel?: NvidiaModelValue;
 }
 
 export interface AudioFileInfo {

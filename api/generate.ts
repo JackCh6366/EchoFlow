@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { fileData, mimeType, options, provider } = req.body;
+    const selectedNvidiaModel: string | undefined = options?.nvidiaModel;
 
     if (!fileData || !mimeType) {
       return res.status(400).json({ error: "缺少音檔數據或媒體類型(mimeType)" });
@@ -188,11 +189,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // 步驟 2: 將轉譯出的文字及原提示詞傳送至 NVIDIA API 進行智慧處理 (使用極為穩定的 Llama-3.1 / Nemotron 等高階語言模型進行下游處理)
-      const nvidiaModels = [
-        "nvidia/llama-3.1-nemotron-70b-instruct",  // NVIDIA 優化版，繁中強
-        "meta/llama-3.3-70b-instruct",              // 最新 Llama 3.3，多語言穩定
-        "meta/llama-3.1-8b-instruct"                // 輕量備援，速度快
-      ];
+      // 若前端指定模型，優先使用；否則依序 fallback
+      const nvidiaModels: string[] = selectedNvidiaModel
+        ? [
+            selectedNvidiaModel,
+            "meta/llama-3.1-8b-instruct",  // 備援
+          ]
+        : [
+            "nvidia/llama-3.1-nemotron-70b-instruct",
+            "meta/llama-3.3-70b-instruct",
+            "meta/llama-3.1-8b-instruct",
+          ];
 
       let nvidiaResponse = null;
       let lastNvidiaError = null;
