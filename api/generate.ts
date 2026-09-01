@@ -18,6 +18,15 @@ if (fs.existsSync(envLocalPath)) {
   }
 }
 
+// Vercel Serverless Body Parser 設定 (允許高達 50MB 的音檔 Base64 上傳)
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+};
+
 const GEMINI_MODELS_FALLBACK = [
   "gemini-3.1-flash-lite",   // 最新 GA 版本，高效率低延遲
   "gemini-3.5-flash",        // 次選：最強 Flash 系列

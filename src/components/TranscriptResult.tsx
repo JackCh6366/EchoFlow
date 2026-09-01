@@ -54,7 +54,14 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
         body: JSON.stringify({ text: result.text, targetLang: "zh-TW" }),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(!response.ok ? `翻譯服務傳輸異常 (HTTP ${response.status})` : "翻譯服務回傳格式非 JSON");
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "翻譯服務回應異常");
       }

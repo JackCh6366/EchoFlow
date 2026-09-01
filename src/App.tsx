@@ -84,10 +84,22 @@ export default function App() {
         }),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        if (!response.ok) {
+          if (response.status === 413 || responseText.includes("Request Entity")) {
+            throw new Error("上傳的音檔檔案過大 (超越伺服器傳輸限制)。請嘗試上傳較短的音檔或壓縮格式 (如 MP3 / M4A)。");
+          }
+          throw new Error(`伺服器回應異常 (HTTP ${response.status}): ${responseText.slice(0, 120)}`);
+        }
+        throw new Error("伺服器回傳了非 JSON 格式的內容。");
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "音軌轉譯失敗");
+        throw new Error(data.error || `音軌轉譯失敗 (HTTP ${response.status})`);
       }
 
       const newResult: TranscriptionResult = {
