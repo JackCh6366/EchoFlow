@@ -2,6 +2,8 @@ import { VercelRequest, VercelResponse } from "@vercel/node";
 import { GoogleGenAI } from "@google/genai";
 import fs from "fs";
 import path from "path";
+import os from "os";
+import crypto from "crypto";
 import dotenv from "dotenv";
 
 // Load standard .env
@@ -46,6 +48,63 @@ async function generateGeminiContentWithFallback(ai: GoogleGenAI, contents: any[
   throw lastError || new Error("所有 Gemini 備用模型鏈皆嘗試失敗。");
 }
 
+async function transcribeAudioWithGemini(ai: GoogleGenAI, base64Data: string, mimeType: string): Promise<string> {
+  console.log(`[Gemini Transcribe] [Interactions API] 嘗試上傳音檔並呼叫專用模型: gemini-3.5-transcribe...`);
+
+  // 使用 crypto.randomUUID 確保高併發下檔名唯一性
+  const tempFileName = `echoflow_${crypto.randomUUID()}.tmp`;
+  const tempFilePath = path.join(os.tmpdir(), tempFileName);
+
+  let uploadedFile: any = null;
+
+  try {
+    // 寫入暫存檔 (Node.js 預設寫入權限)
+    fs.writeFileSync(tempFilePath, Buffer.from(base64Data, "base64"));
+
+    // 步驟 1: 上傳音檔取得 file.uri
+    uploadedFile = await ai.files.upload({
+      file: tempFilePath,
+      config: { mimeType }
+    });
+    console.log(`[Gemini Transcribe] [Files API] 音檔上傳成功, File URI: ${uploadedFile.uri}`);
+
+    // 步驟 2: 透過 Interactions API 呼叫 gemini-3.5-transcribe (smart 模式，無文字 prompt)
+    const interaction: any = await (ai as any).interactions.create({
+      model: "gemini-3.5-transcribe",
+      input: [
+        {
+          type: "audio",
+          uri: uploadedFile.uri,
+          mime_type: mimeType
+        }
+      ],
+      generation_config: {
+        transcription_config: {
+          mode: "smart"
+        }
+      }
+    });
+
+    console.log(`[Gemini Transcribe] [Interactions API] 呼叫成功! ID: ${interaction.id}, Status: ${interaction.status}`);
+
+    const transcribedText = interaction.output_text || "";
+    if (!transcribedText.trim()) {
+      throw new Error("gemini-3.5-transcribe Interactions API 回傳空白逐字稿內容。");
+    }
+
+    return transcribedText.trim();
+  } finally {
+    // try/finally 確保不論 files.upload 或 interactions.create 是否拋出例外，暫存檔均會被安全刪除
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {
+        console.warn("[Gemini Transcribe] 清理暫存檔時發生警告:", e);
+      }
+    }
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 處理 CORS OPTIONS 預檢請求
   if (req.method === "OPTIONS") {
@@ -84,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 5. 若音檔中有多人對話，請嘗試以「發言者 1:」、「發言者 2:」的格式分段標出（若能區分的話）。
 6. 請直接輸出轉錄完成的文字，不需要回答「這是我聽到的內容...」等開場白或結尾說明。`;
     } else if (mode === "summary") {
-      promptText = `你是一個專業的語音摘要助理。請仔細聆聽這段音檔後，為其撰寫一份重點摘要報告。
+      promptText = `你是一個專業的語音摘要助理。請根據提供的語音內容/逐字稿，為其撰寫一份重點摘要報告。
 報告中應包含：
 1. **主題與核心大綱**：這段對話/演講的核心主題是什麼。
 2. **主要討論要點**：條列出音訊中提及的多個關鍵事項或論點。
@@ -95,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - 排版格式請使用簡潔美觀的 Markdown 語法（有良好的多級標題 與 符號列表）。
 - 請直接輸出摘要報告內容，不需要多餘的開場白。`;
     } else if (mode === "qa") {
-      promptText = `請仔細聆聽這段音檔。這是一段會議、訪談或課程記錄。請幫我整理成一份標準的「會議記錄」，包含以下結構：
+      promptText = `請根據提供的語音內容/逐字稿。這是一段會議、訪談或課程記錄。請幫我整理成一份標準的「會議記錄」，包含以下結構：
 1. **基本資訊**（時間、主要多人口頭討論輪廓）
 2. **詳細討論內容（紀要）**：以結構化、易讀的列表方式，說明各部分的討論主題。
 3. **決議事項與後續任務**（包含負責人與截止時間，若音訊中有提及）。
@@ -105,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - 使用 Markdown 語法輸出。
 - 資訊不夠時請依據現有音訊提供真實記錄，不要捏造未提及的細節。`;
     } else if (mode === "translation") {
-      promptText = `你是一個專業的雙語同步口譯助理。請仔細聆聽這段音檔，並將其完美地翻譯成目標語言。
+      promptText = `你是一個專業的雙語同步口譯助理。請根據提供的語音內容/逐字稿，將其完美地翻譯成目標語言。
 目標語言：${language === "zh-TW" ? "繁體中文 (台灣)" : language}。
 請遵守以下規範：
 - 直接輸出翻譯後的最終文字，不要保留原文音標。
@@ -137,18 +196,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       });
 
-      const response = await generateGeminiContentWithFallback(ai, [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: base64Data,
-          },
-        },
-        { text: promptText },
-      ]);
+      // 階段 1：嘗試優先呼叫 gemini-3.5-transcribe 進行語音轉文字
+      let transcriptText = "";
+      let isTranscribeFallback = false;
 
-      const resultText = response.text || "";
-      return res.status(200).json({ text: resultText });
+      try {
+        transcriptText = await transcribeAudioWithGemini(ai, base64Data, mimeType);
+        console.log(`[Gemini Transcribe] 第一階段語音轉文字成功: "${transcriptText.slice(0, 50)}..."`);
+      } catch (err: any) {
+        console.warn(`[Gemini Transcribe Fallback] 呼叫 gemini-3.5-transcribe 失敗 (${err.message || err})。`);
+        console.log(`[Gemini Transcribe Fallback] 降級走 GEMINI_MODELS_FALLBACK 備援路徑 (音檔直接送文字模型)...`);
+        isTranscribeFallback = true;
+      }
+
+      // 若第一階段轉譯失敗，走原始備援路徑（直接將音檔與 Prompt 丟給 GEMINI_MODELS_FALLBACK 處理）
+      if (isTranscribeFallback) {
+        const response = await generateGeminiContentWithFallback(ai, [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data,
+            },
+          },
+          { text: promptText },
+        ]);
+        const resultText = response.text || "";
+        return res.status(200).json({ text: resultText });
+      }
+
+      // 階段 2：依據 mode 分流處理
+      if (mode === "transcribe") {
+        let finalText = transcriptText;
+        if (!punctuation) {
+          finalText = finalText.replace(/[，。？！、；：「」『』（）—….,?!;:]/g, " ").replace(/\s+/g, " ").trim();
+        }
+        return res.status(200).json({ text: finalText });
+      } else {
+        console.log(`[Gemini Phase 2] 使用逐字稿文字進行二階段處理 (mode: ${mode})...`);
+        const textContents = [
+          {
+            text: `${promptText}\n\n【輸入語音逐字稿】：\n${transcriptText}`
+          }
+        ];
+        const response = await generateGeminiContentWithFallback(ai, textContents);
+        const resultText = response.text || "";
+        return res.status(200).json({ text: resultText });
+      }
 
     } else if (currentProvider === "nvidia") {
       const nvidiaApiKey = process.env.NVIDIA_API_KEY;
@@ -171,19 +264,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       });
 
-      // 步驟 1: 利用 Gemini 做前置語音轉文字
-      const transPrompt = "請仔細聆聽這段音檔，並將其轉錄為精確的文字逐字稿，不需添加任何額外的解釋或說明。";
-      const transResponse = await generateGeminiContentWithFallback(ai, [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: base64Data,
+      // 步驟 1: 優先呼叫 gemini-3.5-transcribe 做前置語音轉文字，失敗則降級 fallback
+      let rawTranscription = "";
+      try {
+        rawTranscription = await transcribeAudioWithGemini(ai, base64Data, mimeType);
+        console.log(`[NVIDIA Pre-transcribe] gemini-3.5-transcribe 前置語音轉文字成功。`);
+      } catch (err: any) {
+        console.warn(`[NVIDIA Pre-transcribe Fallback] 呼叫 gemini-3.5-transcribe 失敗 (${err.message || err})。`);
+        console.log(`[NVIDIA Pre-transcribe Fallback] 降級使用 generateGeminiContentWithFallback...`);
+        const transPrompt = "請仔細聆聽這段音檔，並將其轉錄為精確的文字逐字稿，不需添加任何額外的解釋或說明。";
+        const transResponse = await generateGeminiContentWithFallback(ai, [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data,
+            },
           },
-        },
-        { text: transPrompt },
-      ]);
-
-      const rawTranscription = transResponse.text || "";
+          { text: transPrompt },
+        ]);
+        rawTranscription = transResponse.text || "";
+      }
       if (!rawTranscription.trim()) {
         return res.status(500).json({ error: "初步語音轉文字失敗或音訊無聲。" });
       }

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Copy, Check, Download, Search, FileText, Clock, FileDown, Trash } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Copy, Check, Download, Search, FileText, Clock, FileDown, Trash, Languages, Loader2, Sparkles } from "lucide-react";
 import { TranscriptionResult } from "../types";
 
 interface TranscriptResultProps {
@@ -19,9 +19,62 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [downloadDropdownOpen, setDownloadDropdownOpen] = useState(false);
 
+  // 即時翻譯相關狀態
+  const [translatedMap, setTranslatedMap] = useState<Record<string, string>>({});
+  const [activeTabMap, setActiveTabMap] = useState<Record<string, "original" | "translated">>({});
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+
+  // 當前 result 的譯文與當前 View
+  const currentTranslatedText = translatedMap[result.timestamp] || result.translatedText || "";
+  const currentActiveTab = activeTabMap[result.timestamp] || (currentTranslatedText ? "translated" : "original");
+
+  // 判斷原文是否主要是繁體/簡體中文
+  const isChinese = useMemo(() => {
+    const text = result.text || "";
+    const chineseMatch = text.match(/[\u4e00-\u9fa5]/g);
+    const chineseCount = chineseMatch ? chineseMatch.length : 0;
+    const nonSpaceLength = text.replace(/\s+/g, "").length;
+    if (nonSpaceLength === 0) return false;
+    return (chineseCount / nonSpaceLength > 0.25) || (chineseCount > 30);
+  }, [result.text]);
+
+  const activeText = currentActiveTab === "translated" && currentTranslatedText ? currentTranslatedText : result.text;
+
+  // 處理即時翻譯請求
+  const handleTranslate = async () => {
+    if (isTranslating || isChinese) return;
+    setIsTranslating(true);
+    setTranslateError(null);
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: result.text, targetLang: "zh-TW" }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "翻譯服務回應異常");
+      }
+
+      if (data.text) {
+        setTranslatedMap(prev => ({ ...prev, [result.timestamp]: data.text }));
+        setActiveTabMap(prev => ({ ...prev, [result.timestamp]: "translated" }));
+        result.translatedText = data.text;
+      }
+    } catch (err: any) {
+      console.error("即時翻譯失敗:", err);
+      setTranslateError(err.message || "即時翻譯失敗，請稍後重試。");
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(result.text);
+      await navigator.clipboard.writeText(activeText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -32,16 +85,17 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
   const downloadFile = (format: "txt" | "md") => {
     const extension = format;
     const mimeType = "text/plain;charset=utf-8";
-    const filename = `${result.audioName.split(".")[0]}_轉譯結果.${extension}`;
+    const tabSuffix = currentActiveTab === "translated" ? "_中文譯文" : "_轉譯結果";
+    const filename = `${result.audioName.split(".")[0]}${tabSuffix}.${extension}`;
     
-    let content = result.text;
+    let content = activeText;
     if (format === "md") {
-      content = `# ${result.audioName} - 轉譯成果\n` +
+      content = `# ${result.audioName} - ${currentActiveTab === "translated" ? "繁體中文譯本" : "轉譯成果"}\n` +
                 `* **建立時間**: ${new Date(result.timestamp).toLocaleString()}\n` +
                 `* **模式**: ${result.options.mode}\n` +
-                `* **目標語言**: ${result.options.language}\n\n` +
+                `* **檢視狀態**: ${currentActiveTab === "translated" ? "AI 繁體中文譯本" : "原始轉譯結果"}\n\n` +
                 `---\n\n` +
-                result.text;
+                activeText;
     }
 
     const blob = new Blob([content], { type: mimeType });
@@ -169,11 +223,45 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
             </h3>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto ui-sans">
+          <div className="flex items-center gap-2 self-end sm:self-auto ui-sans flex-wrap sm:flex-nowrap">
+            {/* 即時翻譯成繁體中文按鈕 */}
+            {!currentTranslatedText && (
+              <button
+                onClick={handleTranslate}
+                disabled={isTranslating || isChinese}
+                title={isChinese ? "結果本身已是繁體中文" : "將目前結果即時翻譯為繁體中文"}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 shadow-2xs border ${
+                  isChinese
+                    ? "bg-[#E0DCCF]/40 border-[#E0DCCF] text-[#8C887D] cursor-not-allowed opacity-75"
+                    : isTranslating
+                    ? "bg-[#D4A373]/20 border-[#D4A373]/40 text-[#7A4F23] cursor-wait"
+                    : "bg-[#D4A373]/15 hover:bg-[#D4A373]/25 border-[#D4A373]/35 text-[#7A4F23] hover:text-[#5C3B19] cursor-pointer"
+                }`}
+              >
+                {isTranslating ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7A4F23]" />
+                    <span>翻譯中...</span>
+                  </>
+                ) : isChinese ? (
+                  <>
+                    <Languages className="h-3.5 w-3.5 text-[#8C887D]" />
+                    <span>已是繁體中文</span>
+                  </>
+                ) : (
+                  <>
+                    <Languages className="h-3.5 w-3.5 text-[#7A4F23]" />
+                    <Sparkles className="h-3 w-3 text-[#D4A373] animate-pulse" />
+                    <span>翻譯成繁體中文</span>
+                  </>
+                )}
+              </button>
+            )}
+
             {/* 複製 */}
             <button
               onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-full border border-[#E0DCCF] bg-[#FDFBF7] hover:bg-[#F1EFEC] px-4 py-2 text-xs font-semibold text-[#5A5A40] transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-full border border-[#E0DCCF] bg-[#FDFBF7] hover:bg-[#F1EFEC] px-3.5 py-1.5 text-xs font-semibold text-[#5A5A40] transition-colors cursor-pointer"
             >
               {copied ? (
                 <>
@@ -192,7 +280,7 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
             <div className="relative">
               <button
                 onClick={() => setDownloadDropdownOpen(!downloadDropdownOpen)}
-                className="flex items-center gap-1.5 rounded-full bg-[#5A5A40] hover:bg-[#4E4E37] text-[#F8F7F2] px-4 py-2 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 rounded-full bg-[#5A5A40] hover:bg-[#4E4E37] text-[#F8F7F2] px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5" />
                 <span>匯出成果</span>
@@ -210,7 +298,7 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
                       className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-[#413F3D] hover:bg-[#F1EFEC] font-medium"
                     >
                       <FileText className="h-3.5 w-3.5 text-[#8C887D]" />
-                      <span>下載轉錄純文字 (.txt)</span>
+                      <span>下載此視圖純文字 (.txt)</span>
                     </button>
                     <button
                       onClick={() => downloadFile("md")}
@@ -225,6 +313,44 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
             </div>
           </div>
         </div>
+
+        {/* 若有翻譯結果，顯示頁籤切換器與錯誤訊息 */}
+        {translateError && (
+          <div className="mt-2.5 px-3 py-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-700 font-medium">
+            ⚠️ {translateError}
+          </div>
+        )}
+
+        {currentTranslatedText && (
+          <div className="mt-3 flex items-center justify-between bg-[#F1EFEC]/70 border border-[#E0DCCF] rounded-xl p-1 shrink-0 ui-sans">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTabMap(prev => ({ ...prev, [result.timestamp]: "original" }))}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  currentActiveTab === "original"
+                    ? "bg-[#FDFBF7] text-[#413F3D] shadow-2xs border border-[#E0DCCF]"
+                    : "text-[#8C887D] hover:text-[#413F3D]"
+                }`}
+              >
+                原文內容
+              </button>
+              <button
+                onClick={() => setActiveTabMap(prev => ({ ...prev, [result.timestamp]: "translated" }))}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  currentActiveTab === "translated"
+                    ? "bg-[#D4A373] text-white shadow-2xs"
+                    : "text-[#7A4F23] hover:text-[#5C3B19]"
+                }`}
+              >
+                <Languages className="h-3.5 w-3.5" />
+                <span>繁體中文譯本 (AI 翻譯)</span>
+              </button>
+            </div>
+            <span className="text-[10px] font-mono text-[#8C887D] px-2 hidden sm:inline">
+              點擊頁籤可自由對照原文與中文譯文
+            </span>
+          </div>
+        )}
 
         {/* 搜尋過濾 */}
         <div className="mt-3 relative shrink-0 ui-sans">
@@ -241,7 +367,7 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
         {/* 內文檢視器 */}
         <div className="mt-4 flex-1 overflow-y-auto pr-1 border border-[#E0DCCF]/45 bg-[#FDFBF7]/40 rounded-xl p-4 md:p-5">
           <div className="prose max-w-none">
-            {renderFormattedText(result.text, searchTerm)}
+            {renderFormattedText(activeText, searchTerm)}
           </div>
         </div>
       </div>
@@ -288,7 +414,7 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] font-bold px-2 py-0.5 border border-[#A4AC86]/30 rounded-sm bg-[#A4AC86]/10 text-[#5A5A40] tracking-wider uppercase font-mono">
                       {item.options.mode === "transcribe" ? "完整逐字稿" : 
-                       item.options.mode === "summary" ? "及要摘要" :
+                       item.options.mode === "summary" ? "要點摘要" :
                        item.options.mode === "qa" ? "會議記錄" : "異地翻譯"}
                     </span>
                     <span className="text-[9px] text-[#8C887D] font-mono">
@@ -310,4 +436,3 @@ export const TranscriptResult: React.FC<TranscriptResultProps> = ({
     </div>
   );
 };
-

@@ -25,6 +25,7 @@ export interface AudioFileInfo {
 
 export interface TranscriptionResult {
   text: string;
+  translatedText?: string;
   timestamp: string;
   options: TranscribeOptions;
   audioName: string;
