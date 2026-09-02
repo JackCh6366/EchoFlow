@@ -7,7 +7,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 
 // Load standard .env
-dotenv.config();
+dotenv.config({ quiet: true });
 
 // Load .env.local if it exists (takes precedence)
 const envLocalPath = path.resolve(process.cwd(), ".env.local");
